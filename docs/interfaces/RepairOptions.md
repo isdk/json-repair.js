@@ -6,7 +6,7 @@
 
 # Interface: RepairOptions
 
-Defined in: [types.ts:4](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/types.ts#L4)
+Defined in: [types.ts:4](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/types.ts#L4)
 
 Options for the JSON repair process.
 
@@ -16,7 +16,7 @@ Options for the JSON repair process.
 
 > `optional` **additionalProperties**: `"keep"` \| `"remove"`
 
-Defined in: [types.ts:35](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/types.ts#L35)
+Defined in: [types.ts:35](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/types.ts#L35)
 
 Defines how to handle properties not defined in the Schema.
 
@@ -29,7 +29,7 @@ Defines how to handle properties not defined in the Schema.
 
 > `optional` **coerceTypes**: `boolean`
 
-Defined in: [types.ts:27](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/types.ts#L27)
+Defined in: [types.ts:27](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/types.ts#L27)
 
 Whether to attempt type coercion based on the Schema.
 
@@ -41,7 +41,7 @@ If `true`, the parser will try to convert values to the expected type (e.g., "12
 
 > `optional` **keyMatching**: `boolean` \| (`key`, `properties`) => `string` \| `undefined`
 
-Defined in: [types.ts:12](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/types.ts#L12)
+Defined in: [types.ts:12](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/types.ts#L12)
 
 Fuzzy matching for keys.
 
@@ -55,7 +55,7 @@ Fuzzy matching for keys.
 
 > `optional` **stringCaptureStrategy**: `"conservative"` \| `"aggressive"`
 
-Defined in: [types.ts:20](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/types.ts#L20)
+Defined in: [types.ts:20](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/types.ts#L20)
 
 Strategy for greedy string capture when standard JSON parsing fails.
 

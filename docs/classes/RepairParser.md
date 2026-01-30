@@ -6,7 +6,7 @@
 
 # Class: RepairParser
 
-Defined in: [parser.ts:8](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/parser.ts#L8)
+Defined in: [parser.ts:8](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/parser.ts#L8)
 
 A state-machine based parser that repairs and extracts structured data from broken JSON strings.
 It uses a JSON Schema to guide the parsing process, especially for handling ambiguous or missing syntax.
@@ -17,7 +17,7 @@ It uses a JSON Schema to guide the parsing process, especially for handling ambi
 
 > **new RepairParser**(`walker`, `options`): `RepairParser`
 
-Defined in: [parser.ts:21](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/parser.ts#L21)
+Defined in: [parser.ts:21](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/parser.ts#L21)
 
 Creates a new RepairParser instance.
 
@@ -45,7 +45,7 @@ Configuration options for the repair process.
 
 > **parse**(`input`): `any`
 
-Defined in: [parser.ts:35](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/parser.ts#L35)
+Defined in: [parser.ts:35](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/parser.ts#L35)
 
 Parses the input string and returns the repaired JavaScript object.
 

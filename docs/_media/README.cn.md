@@ -24,6 +24,7 @@ LLM 生成的 JSON 经常包含语法错误或语义噪声。常见问题包括�
 
 - **Schema 引导修复**：利用 Schema 解决歧义（例如通过判断冒号后面是否跟着 Schema 定义的 Key 来决定它是定界符还是字符串内容）。
 - **贪婪字符串捕获**：智能捕获未加引号或破碎的字符串，直到遇到下一个合法的 Schema 键名。
+- **平衡定界符追踪**：正确处理 DSL 风格字符串（如 `@func(a, b)`）内部嵌套在括号、方括号或花括号中的结构化符号（逗号、冒号等）。
 - **“奇偶判定法”**：完美解决嵌套引号歧义（例如准确区分 `"A" OR "B"` 和 `"a"b"`）。
 - **语义强制转换 (Coercion)**：
   - **枚举模糊匹配**：如果 Schema 定义了枚举，能将 `"Processing!"` 自动匹配为 `"processing"`。
@@ -55,7 +56,7 @@ const schema = {
   }
 };
 
-const brokenJson = '{ query: "python" OR "js", status: 成功 }';
+const brokenJson = '{ query: "python" OR "js", status: Success! }';
 
 const result = await jsonRepair(brokenJson, schema);
 console.log(result);

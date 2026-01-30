@@ -6,7 +6,7 @@
 
 # Class: SchemaWalker
 
-Defined in: [walker/schema-walker.ts:8](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/walker/schema-walker.ts#L8)
+Defined in: [walker/schema-walker.ts:8](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/walker/schema-walker.ts#L8)
 
 Navigates through a JSON Schema based on a JSON Path.
 Handles $ref resolution and provides type information for specific paths.
@@ -17,7 +17,7 @@ Handles $ref resolution and provides type information for specific paths.
 
 > **getExpectedTypes**(`path`, `key`): `string`[]
 
-Defined in: [walker/schema-walker.ts:89](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/walker/schema-walker.ts#L89)
+Defined in: [walker/schema-walker.ts:89](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/walker/schema-walker.ts#L89)
 
 Gets the expected types for a specific property at a given path.
 
@@ -47,7 +47,7 @@ An array of expected type strings (e.g., ["string", "number"]).
 
 > **getSchemaForPath**(`path`): `any`
 
-Defined in: [walker/schema-walker.ts:37](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/walker/schema-walker.ts#L37)
+Defined in: [walker/schema-walker.ts:37](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/walker/schema-walker.ts#L37)
 
 Retrieves the sub-schema for a given JSON path.
 
@@ -71,7 +71,7 @@ The sub-schema at the specified path, or undefined if not found.
 
 > **isValidProperty**(`path`, `key`): `boolean`
 
-Defined in: [walker/schema-walker.ts:64](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/walker/schema-walker.ts#L64)
+Defined in: [walker/schema-walker.ts:64](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/walker/schema-walker.ts#L64)
 
 Determines if a property key is valid for the given path according to the Schema.
 
@@ -101,7 +101,7 @@ True if the property is defined in the Schema or allowed by additionalProperties
 
 > `static` **create**(`schema`): `Promise`\<`SchemaWalker`\>
 
-Defined in: [walker/schema-walker.ts:22](https://github.com/isdk/json-repair.js/blob/3f845b403701594c2cff6cea4e1759ad41923da5/src/walker/schema-walker.ts#L22)
+Defined in: [walker/schema-walker.ts:22](https://github.com/isdk/json-repair.js/blob/51ba9c939ae687b9da4b8574f2af0af0f31a3c0e/src/walker/schema-walker.ts#L22)
 
 Static factory method to create a SchemaWalker instance.
 Asynchronously dereferences the provided JSON Schema.
