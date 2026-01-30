@@ -70,7 +70,6 @@ const result = await jsonRepair('{ name: 张三, age: 30 }');
 console.log(result); // { name: '张三', age: 30 }
 ```
 
-
 ### 高级技巧：复用 SchemaWalker (批处理)
 
 如果你需要使用相同的 Schema 处理大量数据，预解析 Schema 可以显著提升性能：

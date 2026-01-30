@@ -72,7 +72,6 @@ const result = await jsonRepair('{ name: John, age: 30 }');
 console.log(result); // { name: 'John', age: 30 }
 ```
 
-
 ### Advanced: Reusing SchemaWalker (Batch Processing)
 
 For better performance when processing many items with the same schema:
