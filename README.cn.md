@@ -55,7 +55,7 @@ const schema = {
   }
 };
 
-const brokenJson = '{ query: "python" OR "js", status: 成功 }';
+const brokenJson = '{ query: "python" OR "js", status: Success! }';
 
 const result = await jsonRepair(brokenJson, schema);
 console.log(result);
