@@ -14,10 +14,16 @@ describe('jsonRepair with missing or empty schema', () => {
     expect(result).toEqual({ name: 'John', age: 30 });
   });
 
-  it('should handle without schema', async () => {
+  it('should handle without schema 1', async () => {
     const input = '{"name": "John"';
     const result = await jsonRepair(input);
     expect(result).toEqual({ name: 'John' });
+  });
+
+  it('should handle without schema 2', async () => {
+    const input = '{ name: John, age: 30 ';
+    const result = await jsonRepair(input);
+    expect(result).toEqual({ name: 'John', age: 30 });
   });
 
   it('should handle schema that is just { "type": "object" }', async () => {
