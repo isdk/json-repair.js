@@ -1,6 +1,10 @@
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 import { JSONPath } from '../types.js';
 
+/**
+ * Navigates through a JSON Schema based on a JSON Path.
+ * Handles $ref resolution and provides type information for specific paths.
+ */
 export class SchemaWalker {
   private dereferencedSchema: any;
 
@@ -9,7 +13,11 @@ export class SchemaWalker {
   }
 
   /**
-   * 静态创建方法，处理异步的 $ref 解析
+   * Static factory method to create a SchemaWalker instance.
+   * Asynchronously dereferences the provided JSON Schema.
+   * 
+   * @param schema - The JSON Schema object to walk.
+   * @returns A promise that resolves to a SchemaWalker instance.
    */
   static async create(schema: any): Promise<SchemaWalker> {
     const parser = new $RefParser();
@@ -18,7 +26,10 @@ export class SchemaWalker {
   }
 
   /**
-   * 根据路径获取子 Schema
+   * Retrieves the sub-schema for a given JSON path.
+   * 
+   * @param path - The path to navigate to.
+   * @returns The sub-schema at the specified path, or undefined if not found.
    */
   getSchemaForPath(path: JSONPath): any {
     let current = this.dereferencedSchema;
@@ -38,7 +49,11 @@ export class SchemaWalker {
   }
 
   /**
-   * 判定某个 key 是否属于当前路径下的合法属性
+   * Determines if a property key is valid for the given path according to the Schema.
+   * 
+   * @param path - The current parent path.
+   * @param key - The property key to check.
+   * @returns True if the property is defined in the Schema or allowed by additionalProperties.
    */
   isValidProperty(path: JSONPath, key: string): boolean {
     const schema = this.getSchemaForPath(path);
@@ -46,12 +61,16 @@ export class SchemaWalker {
     
     if (schema.properties && schema.properties[key]) return true;
     
-    // 如果允许额外属性，则任何 key 都是合法的（但在修复模式下，我们可能更倾向于返回 false 以支持贪婪捕获）
+    // In repair mode, we generally prefer strict property matching to avoid false positives in greedy capture.
     return false; 
   }
 
   /**
-   * 获取某个属性期望的类型列表
+   * Gets the expected types for a specific property at a given path.
+   * 
+   * @param path - The current parent path.
+   * @param key - The property key.
+   * @returns An array of expected type strings (e.g., ["string", "number"]).
    */
   getExpectedTypes(path: JSONPath, key: string): string[] {
     const parentSchema = this.getSchemaForPath(path);
