@@ -69,4 +69,14 @@ describe('jsonRepair Schema-Guided', () => {
       name: 'Alice'
     });
   });
+
+  it('should repair array of strings with @ symbols and function-like syntax', async () => {
+    const text = `[ @weather(location="上海, 中国", date="today"), @weather(location="杭州, 中国", date="today")]`;
+    const schema =  {type: 'array', items: { type: 'string'}};
+    const result = await jsonRepair(text, schema);
+    expect(result).toEqual([
+      "@weather(location=\"上海, 中国\", date=\"today\")",
+      "@weather(location=\"杭州, 中国\", date=\"today\")"
+    ]);
+  });
 });

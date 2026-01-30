@@ -230,14 +230,66 @@ export class RepairParser {
    * Captures content greedily until it encounters a delimiter that marks the start of the next property or the end of a structure.
    * Implements the "Parity Rule" for smart quote stripping.
    */
+  /**
+   * Captures content greedily until it encounters a delimiter that marks the start of the next property or the end of a structure.
+   *
+   * This enhanced version tracks balanced delimiters (parentheses, brackets, braces) and quotes
+   * to ensure that structural markers (like commas or colons) inside DSL-like strings
+   * (e.g., `@weather(location="SH, CN")`) are correctly captured as part of the string.
+   *
+   * It also prioritizes top-level structural delimiters to prevent unescaped quotes from
+   * consuming the rest of the JSON.
+   */
   private consumeGreedyString(): string {
     let content = '';
-    const lastPos = this.pos;
+    const stack: string[] = []; // Tracks nesting of (, [, {
+    let inQuote = false;
+    let quoteChar = '';
+
     while (this.pos < this.input.length) {
-      if (this.isAtDelimiter()) break;
-      content += this.next();
-    }
-    if (this.pos === lastPos && this.pos < this.input.length && !this.isAtDelimiter()) {
+      const char = this.peek();
+
+      // Top-level structural delimiters (comma, closing brace/bracket, or next key)
+      // always break greedy capture if we are NOT inside a nested structure (stack is empty).
+      // This prioritization handles cases with broken/unescaped quotes by ensuring
+      // we stop at valid JSON boundaries.
+      if (stack.length === 0 && this.isAtDelimiter()) {
+        break;
+      }
+
+      if (!inQuote) {
+        if (char === '"' || char === "'") {
+          inQuote = true;
+          quoteChar = char;
+        } else if (char === '(' || char === '[' || char === '{') {
+          stack.push(char);
+        } else if (char === ')' || char === ']' || char === '}') {
+          const top = stack[stack.length - 1];
+          // Pop the stack only if delimiters are correctly balanced.
+          if (
+            (char === ')' && top === '(') ||
+            (char === ']' && top === '[') ||
+            (char === '}' && top === '{')
+          ) {
+            stack.pop();
+          }
+        }
+      } else {
+        // Inside a quote, we only look for the matching closing quote,
+        // while respecting backslash escapes.
+        if (char === quoteChar) {
+          let backslashes = 0;
+          let p = this.pos - 1;
+          while (p >= 0 && this.input[p] === '\\') {
+            backslashes++;
+            p--;
+          }
+          // If the quote is not escaped (even number of backslashes before it), close the state.
+          if (backslashes % 2 === 0) {
+            inQuote = false;
+          }
+        }
+      }
       content += this.next();
     }
     

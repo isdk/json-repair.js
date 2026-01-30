@@ -24,6 +24,7 @@ Standard `json-repair` libraries only fix syntax. **@isdk/json-repair** uses you
 
 - **Schema-Guided Repair**: Uses your Schema to resolve ambiguities (e.g., knowing if a colon marks a new key or is part of a string).
 - **Greedy String Capture**: Intelligently captures unquoted or broken strings until the next valid Schema key.
+- **Balanced Delimiter Tracking**: Correctly handles structural markers (commas, colons) inside parentheses, brackets, or braces within DSL-like strings (e.g., `@func(a, b)`).
 - **The "Parity Rule"**: Solves nested quote ambiguity (e.g., correctly distinguishing between `"A" OR "B"` and `"a"b"`).
 - **Semantic Coercion**:
   - **Fuzzy Enum Matching**: Matches "Processing!" to `"processing"` if defined in Schema enums.
