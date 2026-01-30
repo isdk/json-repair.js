@@ -39,7 +39,9 @@ pnpm add @isdk/json-repair @apidevtools/json-schema-ref-parser
 
 ## 🛠 Usage
 
-### Basic Example
+### 1. Schema-Guided Repair (Recommended)
+
+This is the most powerful way to use the library. Providing a schema enables advanced features like semantic coercion, greedy capture, and accurate disambiguation.
 
 ```typescript
 import { jsonRepair } from '@isdk/json-repair';
@@ -58,6 +60,18 @@ const result = await jsonRepair(brokenJson, schema);
 console.log(result);
 // Output: { query: '"python" OR "js"', status: 'success' }
 ```
+
+### 2. Simple Usage (Without Schema)
+
+For basic syntax repair where schema guidance isn't required:
+
+```typescript
+import { jsonRepair } from '@isdk/json-repair';
+
+const result = await jsonRepair('{ name: John, age: 30 }');
+console.log(result); // { name: 'John', age: 30 }
+```
+
 
 ### Advanced: Reusing SchemaWalker (Batch Processing)
 

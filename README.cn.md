@@ -37,7 +37,9 @@ pnpm add @isdk/json-repair @apidevtools/json-schema-ref-parser
 
 ## 🛠 用法
 
-### 基础示例
+### 1. Schema 引导修复 (推荐)
+
+这是最强大的使用方式。提供 Schema 可以开启语义强制转换、贪婪捕获和更精准的歧义消除等高级特性。
 
 ```typescript
 import { jsonRepair } from '@isdk/json-repair';
@@ -56,6 +58,18 @@ const result = await jsonRepair(brokenJson, schema);
 console.log(result);
 // 输出: { query: '"python" OR "js"', status: 'success' }
 ```
+
+### 2. 简单用法 (不使用 Schema)
+
+对于基础的语法修复，你可以不提供 Schema：
+
+```typescript
+import { jsonRepair } from '@isdk/json-repair';
+
+const result = await jsonRepair('{ name: 张三, age: 30 }');
+console.log(result); // { name: '张三', age: 30 }
+```
+
 
 ### 高级技巧：复用 SchemaWalker (批处理)
 
