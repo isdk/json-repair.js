@@ -1,5 +1,8 @@
 # @isdk/json-repair
 
+> 【[English](./README.md)|中文】
+---
+
 一个强大的、基于 Schema 引导的 JSON 修复库，专为修复大语言模型 (LLM) 生成的“破碎” JSON 而设计。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
