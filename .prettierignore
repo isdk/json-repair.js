@@ -2,3 +2,11 @@ node_modules
 dist
 web
 docs
+.cache
+
+# 由 commit-and-tag-version 生成
+CHANGELOG.md
+
+# 本地编辑器配置 / 包管理器配置
+.vscode
+.npmrc
