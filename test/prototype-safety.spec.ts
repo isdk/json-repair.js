@@ -25,7 +25,10 @@ describe('prototype-safe output', () => {
     const result = await jsonRepair('{"__proto__": {"polluted": 1}, "a": 1}')
 
     expect(result.polluted).toBeUndefined()
-    expect(result['__proto__']).toEqual({ polluted: 1 })
+    // The key stays an own, enumerable data property, exactly like `JSON.parse` leaves it.
+    const own = Object.getOwnPropertyDescriptor(result, '__proto__')
+    expect(own?.value).toEqual({ polluted: 1 })
+    expect(own?.enumerable).toBe(true)
     expect(({} as any).polluted).toBeUndefined()
   })
 
