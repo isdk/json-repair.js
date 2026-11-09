@@ -489,17 +489,15 @@ export class RepairParser {
       return val
     }
 
-    // 2. Number conversion (handles thousands separators and units)
+    // 2. Number conversion (handles thousands separators and surrounding text)
     if (types.includes('number') || types.includes('integer')) {
-      let cleaned = strVal
-        .replace(/([^0-9.\-])/g, (match) => {
-          if (match === ',' || match === '，') return ''
-          return ' '
-        })
-        .trim()
-        .split(/\s+/)[0]
-
-      const n = parseFloat(cleaned)
+      // Drop digit-grouping separators, then take the first well-formed numeric token.
+      // Scanning for a token instead of trusting the first whitespace-separated chunk is
+      // what makes text with punctuation around it work: `"Approx. 1,200.50 USD"` would
+      // otherwise yield the stray `.` as its first chunk.
+      const cleaned = strVal.replace(/(?<=\d)[,，](?=\d)/g, '')
+      const match = cleaned.match(/-?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?/)
+      const n = match ? parseFloat(match[0]) : NaN
       if (!isNaN(n)) {
         return types.includes('integer') ? Math.round(n) : n
       }
