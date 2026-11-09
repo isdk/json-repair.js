@@ -80,6 +80,29 @@ export class SchemaWalker {
   }
 
   /**
+   * Whether a property name is explicitly declared in the Schema at the given path.
+   *
+   * @param path - The current parent path.
+   * @param key - The property key to check.
+   * @returns True only when `key` appears in the Schema `properties` of that path.
+   */
+  isDeclaredProperty(path: JSONPath, key: string): boolean {
+    const schema = this.getSchemaForPath(path);
+    return !!schema?.properties && Object.prototype.hasOwnProperty.call(schema.properties, key);
+  }
+
+  /**
+   * Whether the Schema at the given path declares any property names at all.
+   * Used to decide whether key matching can be strict or has to stay lenient.
+   *
+   * @param path - The current parent path.
+   */
+  hasDeclaredProperties(path: JSONPath): boolean {
+    const schema = this.getSchemaForPath(path);
+    return !!schema?.properties && Object.keys(schema.properties).length > 0;
+  }
+
+  /**
    * Gets the expected types for a specific property at a given path.
    * 
    * @param path - The current parent path.

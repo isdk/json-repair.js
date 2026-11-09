@@ -60,50 +60,14 @@ export class RepairParser {
     }
 
     const startPos = this.pos;
-    let result: any;
-    let success = false;
 
-    // 2. Try Standard Parsing
-    if (char === '"' || char === "'") {
-      try {
-        result = this.consumeString();
-        const savedPos = this.pos;
-        this.skipWhitespace();
-        if (this.isAtDelimiter() || this.pos >= this.input.length) {
-          success = true;
-        } else {
-          this.pos = startPos;
-        }
-      } catch (e) { this.pos = startPos; }
-    } else if (this.isDigit(char) || char === '-') {
-      try {
-        result = this.consumeNumber();
-        const savedPos = this.pos;
-        this.skipWhitespace();
-        if (this.isAtDelimiter() || this.pos >= this.input.length) {
-          success = true;
-        } else {
-          this.pos = startPos;
-        }
-      } catch (e) { this.pos = startPos; }
-    } else if (char === 't' || char === 'f' || char === 'n') {
-      try {
-        result = char === 'n' ? this.consumeNull() : this.consumeBoolean();
-        const savedPos = this.pos;
-        this.skipWhitespace();
-        if (this.isAtDelimiter() || this.pos >= this.input.length) {
-          success = true;
-        } else {
-          this.pos = startPos;
-        }
-      } catch (e) { this.pos = startPos; }
-    }
-
-    if (success) {
+    // 2. Try the strict (standard JSON) path for scalars.
+    const strict = this.tryConsumeStrictValue(char);
+    if (strict.ok) {
       if (this.options.coerceTypes && currentSchema) {
-        return this.coerceValue(result, currentSchema);
+        return this.coerceValue(strict.value, currentSchema);
       }
-      return result;
+      return strict.value;
     }
 
     // 3. Fallback to Greedy Capture
@@ -115,6 +79,42 @@ export class RepairParser {
     }
     
     return rawValue;
+  }
+
+  /**
+   * Attempts a strict JSON scalar parse (string / number / boolean / null) at the current
+   * position and rewinds when the token is not followed by a boundary.
+   *
+   * The boundary test runs in `'structural'` mode: a cleanly parsed value is trusted, so
+   * anything that looks like the next key is treated as structure and the successful parse
+   * is never discarded in favour of greedy capture. This is what guarantees that valid JSON
+   * always parses exactly like `JSON.parse`.
+   */
+  private tryConsumeStrictValue(char: string): { ok: boolean; value: any } {
+    const startPos = this.pos;
+
+    let parse: (() => any) | null = null;
+    if (char === '"' || char === "'") {
+      parse = () => this.consumeString();
+    } else if (this.isDigit(char) || char === '-') {
+      parse = () => this.consumeNumber();
+    } else if (char === 't' || char === 'f' || char === 'n') {
+      parse = () => (char === 'n' ? this.consumeNull() : this.consumeBoolean());
+    }
+    if (!parse) return { ok: false, value: undefined };
+
+    try {
+      const value = parse();
+      this.skipWhitespace();
+      if (this.isAtDelimiter('structural') || this.pos >= this.input.length) {
+        return { ok: true, value };
+      }
+    } catch (e) {
+      // Malformed token: fall back to greedy capture.
+    }
+
+    this.pos = startPos;
+    return { ok: false, value: undefined };
   }
 
   /**
@@ -133,7 +133,7 @@ export class RepairParser {
       }
 
       const key = this.consumeKey();
-      if (!key) break;
+      if (key === null) break;
 
       // Handle duplicate keys in implicit objects within an array context
       if (!hasBraces && obj.hasOwnProperty(key)) {
@@ -211,34 +211,39 @@ export class RepairParser {
 
   /**
    * Consumes a property key, handling both quoted and unquoted keys.
+   *
+   * A quoted key keeps its exact content, including whitespace and punctuation
+   * (`"Official language"`); a bare key stops at quote characters so that a malformed
+   * document can never produce keys such as `language"`.
+   *
+   * @returns the key, or `null` when no key is present at all (an empty quoted key `""`
+   * is a valid key and returns the empty string).
    */
-  private consumeKey(): string {
+  private consumeKey(): string | null {
     this.skipWhitespace();
-    if (this.pos >= this.input.length) return '';
+    if (this.pos >= this.input.length) return null;
     if (this.peek() === '"' || this.peek() === "'") return this.consumeString();
     
     let key = '';
     while (this.pos < this.input.length && !this.isWhitespace(this.peek()) && 
            this.peek() !== ':' && this.peek() !== ',' && 
-           this.peek() !== '}' && this.peek() !== ']') {
+           this.peek() !== '}' && this.peek() !== ']' &&
+           this.peek() !== '"' && this.peek() !== "'") {
       key += this.next();
     }
     return key;
   }
 
   /**
-   * Captures content greedily until it encounters a delimiter that marks the start of the next property or the end of a structure.
-   * Implements the "Parity Rule" for smart quote stripping.
-   */
-  /**
-   * Captures content greedily until it encounters a delimiter that marks the start of the next property or the end of a structure.
+   * Captures content greedily until it encounters a delimiter that marks the start of the
+   * next property or the end of a structure. This is the fallback used when the strict JSON
+   * path failed, so the boundary test runs in `'greedy'` mode: when the Schema declares
+   * property names for this level, capture stops only at a declared key (see
+   * {@link RepairParser.isBoundaryAhead}).
    *
-   * This enhanced version tracks balanced delimiters (parentheses, brackets, braces) and quotes
-   * to ensure that structural markers (like commas or colons) inside DSL-like strings
-   * (e.g., `@weather(location="SH, CN")`) are correctly captured as part of the string.
-   *
-   * It also prioritizes top-level structural delimiters to prevent unescaped quotes from
-   * consuming the rest of the JSON.
+   * It also tracks balanced delimiters (parentheses, brackets, braces) and quotes, so that
+   * structural markers inside DSL-like strings (e.g. `@weather(location="SH, CN")`) stay
+   * part of the captured value, and implements the "Parity Rule" for quote stripping.
    */
   private consumeGreedyString(): string {
     let content = '';
@@ -253,7 +258,7 @@ export class RepairParser {
       // always break greedy capture if we are NOT inside a nested structure (stack is empty).
       // This prioritization handles cases with broken/unescaped quotes by ensuring
       // we stop at valid JSON boundaries.
-      if (stack.length === 0 && this.isAtDelimiter()) {
+      if (stack.length === 0 && this.isAtDelimiter('greedy')) {
         break;
       }
 
@@ -319,7 +324,7 @@ export class RepairParser {
   /**
    * Probes whether the current position marks a structural delimiter (end or next property).
    */
-  private isAtDelimiter(): boolean {
+  private isAtDelimiter(mode: 'structural' | 'greedy' = 'greedy'): boolean {
     if (this.pos >= this.input.length) return true;
     const char = this.peek();
     if (char === '}' || char === ']') return true;
@@ -330,16 +335,16 @@ export class RepairParser {
       if (currentIsArray) return true; 
       const remaining = this.input.slice(this.pos + 1);
       if (/^\s*[}\]]/.test(remaining)) return true;
-      return this.isLookingAtKey(this.pathStack.slice(0, -1), this.pos + 1);
+      return this.isBoundaryAhead(this.pos + 1, mode);
     }
 
-    if (this.isLookingAtKey(this.pathStack.slice(0, -1))) return true;
+    if (this.isBoundaryAhead(this.pos, mode)) return true;
 
     if (this.isWhitespace(char)) {
       const savedPos = this.pos;
       this.skipWhitespace();
       const nextChar = this.peek();
-      const isDelim = nextChar === '}' || nextChar === ']' || nextChar === ',' || this.isLookingAtKey(this.pathStack.slice(0, -1));
+      const isDelim = nextChar === '}' || nextChar === ']' || nextChar === ',' || this.isBoundaryAhead(this.pos, mode);
       this.pos = savedPos;
       return isDelim;
     }
@@ -350,13 +355,41 @@ export class RepairParser {
    * Checks if the upcoming text looks like a property key defined in the Schema at the given path.
    */
   private isLookingAtKey(path: JSONPath, startPos: number = this.pos): boolean {
+    const key = this.matchKey(startPos);
+    return key !== null && this.walker.isValidProperty(path, key);
+  }
+
+  /**
+   * Matches a property key at `startPos`, including quoted keys that contain
+   * whitespace/commas/colons (`"Official language":`), and returns the decoded key.
+   */
+  private matchKey(startPos: number = this.pos): string | null {
     const remaining = this.input.slice(startPos);
-    const match = remaining.match(/^\s*["']?([^"'\s:]+)["']?\s*:/);
-    if (match) {
-      const potentialKey = match[1];
-      return this.walker.isValidProperty(path, potentialKey);
+    const match = remaining.match(/^\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s"',:{}\[\]]+))\s*:/);
+    if (!match) return null;
+    const quoted = match[1] !== undefined || match[2] !== undefined;
+    let key = match[1] ?? match[2] ?? match[3];
+    if (quoted) key = key.replace(/\\(["'\\])/g, '$1');
+    return key;
+  }
+
+  /**
+   * Is a property boundary (a key followed by ':') ahead of `startPos`?
+   *
+   * - 'structural': trust any key-shaped token. Used right after a value was parsed by the
+   *   strict JSON path, so a successful parse is never thrown away.
+   * - 'greedy': when the Schema declares property names at this level, stop only at a
+   *   declared key; otherwise text that merely looks like `"foo bar":` would cut the value.
+   */
+  private isBoundaryAhead(startPos: number, mode: 'structural' | 'greedy'): boolean {
+    const key = this.matchKey(startPos);
+    if (key === null) return false;
+    const parent = this.pathStack.slice(0, -1);
+    if (mode === 'structural') return true;
+    if (this.walker.hasDeclaredProperties(parent)) {
+      return this.walker.isDeclaredProperty(parent, key);
     }
-    return false;
+    return this.walker.isValidProperty(parent, key);
   }
 
   /**
