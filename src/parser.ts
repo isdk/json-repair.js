@@ -96,7 +96,7 @@ export class RepairParser {
     let parse: (() => any) | null = null;
     if (char === '"' || char === "'") {
       parse = () => this.consumeString();
-    } else if (this.isDigit(char) || char === '-') {
+    } else if (this.isDigit(char) || char === '-' || char === '+') {
       parse = () => this.consumeNumber();
     } else if (char === 't' || char === 'f' || char === 'n') {
       parse = () => (char === 'n' ? this.consumeNull() : this.consumeBoolean());
@@ -464,14 +464,22 @@ export class RepairParser {
   }
 
   /**
+   * Matches a JSON number literal at the current position.
+   *
+   * Scientific notation (`1e5`, `-2E2`) and a leading `+` are accepted; the match always
+   * stops at the end of a well-formed literal so that leftovers such as `1.2.3` remain
+   * available for greedy capture instead of being silently truncated.
+   */
+  private static readonly NUMBER_PATTERN = /^[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?/;
+
+  /**
    * Consumes a standard JSON number.
    */
   private consumeNumber(): number {
-    let numStr = '';
-    while (this.pos < this.input.length && /[0-9.\-]/.test(this.peek())) {
-      numStr += this.next();
-    }
-    return parseFloat(numStr);
+    const match = this.input.slice(this.pos).match(RepairParser.NUMBER_PATTERN);
+    if (!match) return NaN;
+    this.pos += match[0].length;
+    return parseFloat(match[0]);
   }
 
   /**
