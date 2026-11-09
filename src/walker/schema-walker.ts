@@ -1,5 +1,5 @@
 import $RefParser from '@apidevtools/json-schema-ref-parser'
-import { JSONPath } from '../types.js'
+import { JSONPath, RepairOptions } from '../types.js'
 
 /**
  * Navigates through a JSON Schema based on a JSON Path.
@@ -8,8 +8,11 @@ import { JSONPath } from '../types.js'
 export class SchemaWalker {
   private dereferencedSchema: any
 
-  private constructor(schema: any) {
+  private options: RepairOptions
+
+  private constructor(schema: any, options: RepairOptions = {}) {
     this.dereferencedSchema = schema
+    this.options = options
   }
 
   /**
@@ -17,15 +20,19 @@ export class SchemaWalker {
    * Asynchronously dereferences the provided JSON Schema.
    *
    * @param schema - The JSON Schema object to walk.
+   * @param options - Repair options that concern the Schema itself (`keyMatching`).
    * @returns A promise that resolves to a SchemaWalker instance.
    */
-  static async create(schema: any): Promise<SchemaWalker> {
+  static async create(
+    schema: any,
+    options: RepairOptions = {}
+  ): Promise<SchemaWalker> {
     if (!schema) {
-      return new SchemaWalker({})
+      return new SchemaWalker({}, options)
     }
     const parser = new $RefParser()
     const dereferenced = await parser.dereference(schema)
-    return new SchemaWalker(dereferenced)
+    return new SchemaWalker(dereferenced, options)
   }
 
   /**
@@ -71,12 +78,59 @@ export class SchemaWalker {
     if (schema.type && schema.type !== 'object') return false
 
     if (schema.properties) {
-      if (schema.properties[key]) return true
+      if (this.matchProperty(path, key) !== null) return true
       return schema.additionalProperties !== false
     }
 
     // If it's an object but no properties defined, check additionalProperties
     return schema.additionalProperties !== false
+  }
+
+  /**
+   * Resolves an incoming property name to the name declared by the Schema at `path`.
+   *
+   * Without `keyMatching` this only accepts an exact declaration. With `keyMatching: true`
+   * the comparison ignores case and the separators used by the two common naming styles
+   * (`user_name` / `userName` / `USER NAME`). A function matcher decides itself and may
+   * return a name the Schema does not declare.
+   *
+   * @param path - The current parent path.
+   * @param key - The property key found in the broken document.
+   * @returns The canonical Schema property name, or `null` when nothing matches.
+   */
+  matchProperty(path: JSONPath, key: string): string | null {
+    const properties = this.declaredPropertyNames(path)
+    if (properties.includes(key)) return key
+
+    const mode = this.options.keyMatching
+    if (!mode || properties.length === 0) return null
+
+    if (typeof mode === 'function') {
+      const mapped = mode(key, properties)
+      return typeof mapped === 'string' && mapped !== '' ? mapped : null
+    }
+
+    const wanted = SchemaWalker.normalizeName(key)
+    return (
+      properties.find((name) => SchemaWalker.normalizeName(name) === wanted) ??
+      null
+    )
+  }
+
+  /**
+   * The property names the Schema declares at `path` (empty when the level is free-form).
+   */
+  declaredPropertyNames(path: JSONPath): string[] {
+    const properties = this.getSchemaForPath(path)?.properties
+    return properties ? Object.keys(properties) : []
+  }
+
+  /**
+   * Folding used for fuzzy key matching: case-insensitive and separator-insensitive, so
+   * snake_case, kebab-case, camelCase and spaced keys collide.
+   */
+  private static normalizeName(name: string): string {
+    return name.replace(/[\s_\-.]/g, '').toLowerCase()
   }
 
   /**

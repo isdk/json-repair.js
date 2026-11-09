@@ -143,8 +143,16 @@ export class RepairParser {
       const key = this.consumeKey()
       if (key === null) break
 
+      // Map the incoming key onto the name declared by the Schema when `keyMatching`
+      // allows it. The canonical name is what ends up in the output and in the path used
+      // for nested Schema lookups, so coercion of nested values keeps working.
+      // At this point `pathStack` is exactly the parent path: the current key is only
+      // pushed once its value is being parsed.
+      const parentPath = [...this.pathStack]
+      const property = this.walker.matchProperty(parentPath, key) ?? key
+
       // Handle duplicate keys in implicit objects within an array context
-      if (!hasBraces && Object.prototype.hasOwnProperty.call(obj, key)) {
+      if (!hasBraces && Object.prototype.hasOwnProperty.call(obj, property)) {
         this.pos = lastPos
         break
       }
@@ -152,11 +160,13 @@ export class RepairParser {
       this.skipWhitespace()
       if (this.peek() === ':') this.consumeChar(':')
 
-      this.pathStack.push(key)
+      this.pathStack.push(property)
       try {
         const val = this.consumeValue()
         if (this.pos !== lastPos || (val !== undefined && val !== '')) {
-          obj[key] = val
+          if (this.isKeptProperty(parentPath, property)) {
+            obj[property] = val
+          }
         }
       } finally {
         this.pathStack.pop()
@@ -185,6 +195,19 @@ export class RepairParser {
     }
     if (hasBraces && this.peek() === '}') this.consumeChar('}')
     return obj
+  }
+
+  /**
+   * Whether a property belongs in the output, according to `RepairOptions.additionalProperties`.
+   *
+   * `'remove'` only drops keys at a level whose Schema declares property names: a level
+   * that is free-form (`type: 'object'` without `properties`, or no Schema at all) has no
+   * notion of an "extra" key, so dropping everything there would be destructive.
+   */
+  private isKeptProperty(parent: JSONPath, property: string): boolean {
+    if (this.options.additionalProperties !== 'remove') return true
+    if (!this.walker.hasDeclaredProperties(parent)) return true
+    return this.walker.isDeclaredProperty(parent, property)
   }
 
   /**
@@ -413,6 +436,7 @@ export class RepairParser {
     if (key === null) return false
     const parent = this.pathStack.slice(0, -1)
     if (mode === 'structural') return true
+    if (this.options.stringCaptureStrategy === 'conservative') return true
     if (this.walker.hasDeclaredProperties(parent)) {
       return this.walker.isDeclaredProperty(parent, key)
     }

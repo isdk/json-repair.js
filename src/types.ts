@@ -3,26 +3,34 @@
  */
 export interface RepairOptions {
   /**
-   * Fuzzy matching for keys.
+   * Fuzzy matching of property keys against the Schema's declared `properties`.
    *
-   * - `false` (default): Strict matching against the Schema defined keys.
-   * - `true`: Allows case-insensitive matching and conversion between snake_case and camelCase.
-   * - `(key: string, properties: string[]) => string | undefined`: Custom mapping logic to find a matching property name.
+   * - `false` (default): Only an exactly declared key counts as a match.
+   * - `true`: Case-insensitive and separator-insensitive matching, so `user_name`,
+   *   `userName`, `USER-NAME` and `user name` all resolve to the declared key.
+   * - `(key: string, properties: string[]) => string | undefined`: Custom mapping logic;
+   *   it receives the incoming key and the declared names, and returns the name to use
+   *   (or `undefined` to fall back to the incoming key).
    *
-   * @experimental Declared but not wired up yet; has no effect in the current release.
+   * A match renames the key to the Schema's name in the output and makes nested Schema
+   * lookups (and therefore type coercion) work for it.
+   * When you reuse a `SchemaWalker`, pass this option to `SchemaWalker.create()`.
    */
   keyMatching?:
     | boolean
     | ((key: string, properties: string[]) => string | undefined)
 
   /**
-   * Strategy for greedy string capture when standard JSON parsing fails.
+   * Strategy for greedy string capture when the strict JSON path failed for a value.
    *
-   * - `'conservative'`: Stops at any text matching the `"key":` pattern.
-   * - `'aggressive'` (default): Only stops if the key exists in the Schema and its following value type matches the expectations.
+   * - `'aggressive'` (default): When the Schema declares property names for the current
+   *   level, the captured value only ends at one of those declared keys. Text that merely
+   *   looks like `"some words":` stays inside the value.
+   * - `'conservative'`: Any text matching the `"key":` / `key:` pattern ends the value,
+   *   which keeps the structure of the document at the cost of cutting values short.
    *
-   * @experimental Declared but not wired up yet; has no effect in the current release.
-   * See `RepairParser.isAtDelimiter()` for the behaviour that is actually applied.
+   * Neither strategy affects values that were parsed by the strict JSON path; the
+   * boundary rules described in the README apply to those unchanged.
    */
   stringCaptureStrategy?: 'conservative' | 'aggressive'
 
@@ -37,9 +45,11 @@ export interface RepairOptions {
    * Defines how to handle properties not defined in the Schema.
    *
    * - `'keep'` (default): Keeps these extra properties in the output.
-   * - `'remove'`: Automatically removes properties not found in the Schema.
+   * - `'remove'`: Drops them. Only applies at a level whose Schema declares `properties`;
+   *   a free-form level has no "extra" keys and is left untouched.
    *
-   * @experimental Declared but not wired up yet; extra properties are always kept.
+   * This option is independent from the JSON Schema keyword `additionalProperties: false`,
+   * which is respected on its own when validating incoming keys.
    */
   additionalProperties?: 'keep' | 'remove'
 }

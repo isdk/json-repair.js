@@ -24,7 +24,9 @@ export async function jsonRepair(
   options: RepairOptions = {}
 ): Promise<any> {
   const walker =
-    schema instanceof SchemaWalker ? schema : await SchemaWalker.create(schema)
+    schema instanceof SchemaWalker
+      ? schema
+      : await SchemaWalker.create(schema, options)
   const parser = new RepairParser(walker, options)
   return parser.parse(input)
 }
