@@ -31,6 +31,7 @@ Standard `json-repair` libraries only fix syntax. **@isdk/json-repair** uses you
   - **Noisy Number Extraction**: Extracts `1200.5` from `"Approx. 1,200.50 USD"`.
   - **Boolean Variants**: Recognizes `yes/no`, `on/off`, `1/0`, `确定/取消` as booleans.
 - **Implicit Structure Support**: Automatically repairs missing braces in objects and arrays.
+- **Robust Property Boundaries**: quoted keys may contain spaces and punctuation (`"Official language": "Italian"`); a value that parses cleanly is never re-tokenized, so valid JSON round-trips exactly like `JSON.parse`.
 - **Performance**: Support for reusing `SchemaWalker` instances for high-throughput batch processing.
 
 ## 📦 Installation
@@ -74,6 +75,10 @@ import { jsonRepair } from '@isdk/json-repair';
 
 const result = await jsonRepair('{ name: John, age: 30 }');
 console.log(result); // { name: 'John', age: 30 }
+
+// Quoted keys may contain spaces and punctuation; valid JSON round-trips untouched.
+const country = await jsonRepair('{ "Capital": "Berlin", "Official language": "Italian" }');
+console.log(country); // { Capital: 'Berlin', 'Official language': 'Italian' }
 ```
 
 ### Advanced: Reusing SchemaWalker (Batch Processing)
@@ -91,13 +96,68 @@ for (const item of brokenItems) {
 }
 ```
 
+## 🧭 How Property Boundaries Are Detected
+
+While repairing a value, the parser must decide at every position whether an upcoming
+`"foo":` starts the **next property** or is just part of the **current value**. It uses two modes:
+
+1. **Structural mode** — applies right after a value was parsed by the strict JSON path
+   (a balanced `"string"`, a well-formed number, `true`/`false`/`null`).
+   Any key-shaped token followed by `:` counts as the next property, *including quoted keys
+   that contain whitespace or punctuation* (`"Official language":`, `"a, b":`, `"a: b":`).
+   A successful strict parse is **never** discarded, which is why valid JSON always yields
+   exactly what `JSON.parse` would return.
+2. **Greedy mode** — applies when the value could not be parsed strictly (unquoted text,
+   unescaped inner quotes, `"A" OR "B"` expressions, DSL snippets such as `@func(a="x, y")`).
+   - If the Schema declares property names for the current level, capture stops **only at a
+     declared key**. Text that merely looks like a key stays inside the value:
+     `{ "query": he said "hello there": loudly, "intent": "x" }` keeps
+     `query = 'he said "hello there": loudly'`.
+   - If the Schema declares no property names for that level (no schema, `type: "object"`
+     without `properties`, or only `additionalProperties`), the parser falls back to
+     “the first key-shaped token ends the value”.
+
+### Thinking about the heuristic
+
+Ambiguity is missing information, not magic: `{ "note": see "foo bar": baz here, "b": 2 }`
+cannot be decided without a schema, because both readings are plausible. The principles the
+parser follows are:
+
+- A **cleanly parsed** value is trusted; whatever follows it is assumed to be structure.
+- A **messy** value is preserved as text whenever the Schema can name the real anchors.
+- Consequently, **declaring the `properties` of the current level is the single most effective
+  way to steer the repair** — declared keys act as breakpoints for greedy capture, and
+  declared `type`/`enum` enable semantic coercion.
+- If a value may legitimately contain `word:` or `"phrase":`, prefer having the model emit
+  properly escaped JSON (then the strict parse wins outright), or declare that level's
+  properties in the Schema.
+- If a value looks truncated right at something key-shaped, that level is probably missing
+  `properties` in your Schema — add them and re-run.
+
+Numeric literals support scientific notation (`1e5`, `-2E2`) as well as the lax LLM forms
+`+5`, `.5` and `5.`. A partial literal such as `1.2.3` is kept as a string and then coerced
+according to the Schema.
+
 ## ⚠️ Known Limitations & Disambiguation
 
 - **The "Parity Rule"**: When a string is wrapped in quotes and contains internal quotes, we count the internal ones.
   - Odd count (e.g., `"a"b"`): We assume the outer quotes are delimiters -> `a"b`.
   - Even count (e.g., `"A" OR "B"`): We assume the outer quotes are part of the expression -> `"A" OR "B"`.
   - **Limitation**: Highly unusual patterns like `"a"b"c"` might remain ambiguous.
+- **Key-shaped text inside a broken value (no schema guidance)**: when the Schema declares no property names for the current level, the first key-shaped token ends the value.
+  `{ "note": see "foo bar": baz here, "b": 2 }` without a schema is therefore read as `{ note: 'see', 'foo bar': 'baz here', b: 2 }`. Declaring that level's `properties` makes greedy capture stop only at real keys and restores `{ note: 'see "foo bar": baz here', b: 2 }` (see [Thinking about the heuristic](#thinking-about-the-heuristic)).
 - **Markdown Blocks**: This library focuses on the JSON content. Please strip ```json ...``` markers before passing the string if your LLM includes them.
+
+## 🗺 Not Wired Up Yet
+
+The following `RepairOptions` are declared in the typings and documented, but currently have
+**no effect** in the implementation. They are scheduled for the next release:
+
+- `keyMatching` — fuzzy (case-insensitive / snake_case ↔ camelCase / custom) property-name matching.
+- `stringCaptureStrategy` — explicit `'conservative'` vs `'aggressive'` greedy-capture strategy.
+  Today the behaviour described in [How Property Boundaries Are Detected](#how-property-boundaries-are-detected) applies.
+- `additionalProperties` — keeping vs dropping properties that the Schema does not declare.
+  Extra properties are always kept today.
 
 ## 📄 License
 

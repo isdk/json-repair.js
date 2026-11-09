@@ -4,18 +4,23 @@
 export interface RepairOptions {
   /**
    * Fuzzy matching for keys.
-   * 
+   *
    * - `false` (default): Strict matching against the Schema defined keys.
    * - `true`: Allows case-insensitive matching and conversion between snake_case and camelCase.
    * - `(key: string, properties: string[]) => string | undefined`: Custom mapping logic to find a matching property name.
+   *
+   * @experimental Declared but not wired up yet; has no effect in the current release.
    */
   keyMatching?: boolean | ((key: string, properties: string[]) => string | undefined);
 
   /**
    * Strategy for greedy string capture when standard JSON parsing fails.
-   * 
+   *
    * - `'conservative'`: Stops at any text matching the `"key":` pattern.
    * - `'aggressive'` (default): Only stops if the key exists in the Schema and its following value type matches the expectations.
+   *
+   * @experimental Declared but not wired up yet; has no effect in the current release.
+   * See `RepairParser.isAtDelimiter()` for the behaviour that is actually applied.
    */
   stringCaptureStrategy?: 'conservative' | 'aggressive';
 
@@ -28,9 +33,11 @@ export interface RepairOptions {
 
   /**
    * Defines how to handle properties not defined in the Schema.
-   * 
+   *
    * - `'keep'` (default): Keeps these extra properties in the output.
    * - `'remove'`: Automatically removes properties not found in the Schema.
+   *
+   * @experimental Declared but not wired up yet; extra properties are always kept.
    */
   additionalProperties?: 'keep' | 'remove';
 }
