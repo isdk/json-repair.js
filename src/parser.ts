@@ -36,6 +36,8 @@ export class RepairParser {
     this.input = input.trim()
     this.pos = 0
     this.pathStack = []
+    this.cachedPath = null
+    this.cachedDeclaredKeys = []
     return this.consumeValue()
   }
 
@@ -140,7 +142,7 @@ export class RepairParser {
         break
       }
 
-      const key = this.consumeKey()
+      const key = this.consumeKey(this.pathStack)
       if (key === null) break
 
       // Map the incoming key onto the name declared by the Schema when `keyMatching`
@@ -266,13 +268,24 @@ export class RepairParser {
    * (`"Official language"`); a bare key stops at quote characters so that a malformed
    * document can never produce keys such as `language"`.
    *
+   * A bare key that the Schema declares verbatim at `path` wins over the token scan, so a
+   * multi-word declaration (`Official language`) is read as one key even when the document
+   * left it unquoted (see {@link RepairParser.matchDeclaredKey}).
+   *
+   * @param path - The parent path the key belongs to; `pathStack` (the key is pushed later).
    * @returns the key, or `null` when no key is present at all (an empty quoted key `""`
    * is a valid key and returns the empty string).
    */
-  private consumeKey(): string | null {
+  private consumeKey(path: JSONPath = this.pathStack): string | null {
     this.skipWhitespace()
     if (this.pos >= this.input.length) return null
     if (this.peek() === '"' || this.peek() === "'") return this.consumeString()
+
+    const declared = this.matchDeclaredKey(this.pos, path)
+    if (declared) {
+      this.pos += declared.length
+      return declared.key
+    }
 
     let key = ''
     while (
@@ -378,6 +391,102 @@ export class RepairParser {
   }
 
   /**
+   * Characters that make the text before a candidate key part of a longer word.
+   */
+  private static readonly WORD_CHAR = /[\p{L}\p{N}_]/u
+
+  /**
+   * Compiled "declared key literally here" patterns, shared across instances.
+   * Keyed by `fuzzy` + name because the `i` flag depends on `keyMatching`.
+   */
+  private static readonly declaredKeyPatterns = new Map<string, RegExp>()
+
+  /**
+   * Memo of the last path the multi-word declarations were collected for.
+   * Greedy capture probes every character of a value while the path stays the same, so this
+   * avoids re-walking the Schema (and re-keying a Map) thousands of times per document.
+   */
+  private cachedPath: JSONPath | null = null
+  private cachedDeclaredKeys: { name: string; pattern: RegExp }[] = []
+
+  /**
+   * The property names declared at `path` that contain whitespace, with a pattern that matches
+   * them literally: the name escaped, internal whitespace runs relaxed to `\s+`, and a `:`
+   * required after it. Single-word names are deliberately excluded - the generic key-shaped
+   * regex of {@link RepairParser.matchKey} already covers them.
+   */
+  private declaredMultiWordKeys(
+    path: JSONPath
+  ): { name: string; pattern: RegExp }[] {
+    if (
+      this.cachedPath &&
+      this.cachedPath.length === path.length &&
+      this.cachedPath.every((segment, i) => segment === path[i])
+    ) {
+      return this.cachedDeclaredKeys
+    }
+
+    const fuzzy = this.options.keyMatching === true
+    const list = this.walker
+      .declaredPropertyNames(path)
+      .filter((name) => /\s/.test(name.trim()))
+      .map((name) => {
+        const patternKey = `${fuzzy ? 'i' : ''}:${name}`
+        let pattern = RepairParser.declaredKeyPatterns.get(patternKey)
+        if (!pattern) {
+          const body = name
+            .trim()
+            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\s+/g, '\\s+')
+          pattern = new RegExp(`^${body}(?=\\s*:)`, fuzzy ? 'i' : '')
+          RepairParser.declaredKeyPatterns.set(patternKey, pattern)
+        }
+        return { name, pattern }
+      })
+      .sort((a, b) => b.name.length - a.name.length)
+
+    this.cachedPath = [...path]
+    this.cachedDeclaredKeys = list
+    return list
+  }
+
+  /**
+   * Matches a Schema-declared property name that contains whitespace at `startPos`, literally
+   * (case as declared, unless `keyMatching` folds case).
+   *
+   * The generic key scanner cannot help here: its bare-key branch excludes whitespace, so an
+   * unquoted `Official language:` in the document is never seen as one key. Declaring the name
+   * in the Schema supplies the missing information, and this method turns it into both a
+   * breakpoint for greedy capture and a readable key. A candidate glued to a longer word
+   * (`de-factoOfficial language:`) is rejected, so the breakpoint stays anchored on real keys.
+   *
+   * @returns the declared name and the amount of text it covers, or `null`.
+   */
+  private matchDeclaredKey(
+    startPos: number,
+    path: JSONPath = this.pathStack
+  ): { key: string; length: number } | null {
+    let start = startPos
+    while (start < this.input.length && this.isWhitespace(this.input[start]))
+      start++
+    if (start > 0 && RepairParser.WORD_CHAR.test(this.input[start - 1]))
+      return null
+
+    const candidates = this.declaredMultiWordKeys(path)
+    if (candidates.length === 0) return null
+
+    const remaining = this.input.slice(start)
+    let best: { key: string; length: number } | null = null
+    for (const { name, pattern } of candidates) {
+      const match = remaining.match(pattern)
+      if (match && (!best || match[0].length > best.length)) {
+        best = { key: name, length: match[0].length }
+      }
+    }
+    return best
+  }
+
+  /**
    * Probes whether the current position marks a structural delimiter (end or next property).
    */
   private isAtDelimiter(mode: 'structural' | 'greedy' = 'greedy'): boolean {
@@ -416,6 +525,7 @@ export class RepairParser {
    * Checks if the upcoming text looks like a property key defined in the Schema at the given path.
    */
   private isLookingAtKey(path: JSONPath, startPos: number = this.pos): boolean {
+    if (this.matchDeclaredKey(startPos, path) !== null) return true
     const key = this.matchKey(startPos)
     return key !== null && this.walker.isValidProperty(path, key)
   }
@@ -443,18 +553,25 @@ export class RepairParser {
    *   strict JSON path, so a successful parse is never thrown away.
    * - 'greedy': when the Schema declares property names at this level, stop only at a
    *   declared key; otherwise text that merely looks like `"foo bar":` would cut the value.
+   *
+   * A whitespace-containing name declared by the Schema is always a breakpoint, quoted or not,
+   * because it can only be recognised literally (see {@link RepairParser.matchDeclaredKey});
+   * in greedy mode other keys count as breakpoints through `keyMatching`, so a declared key
+   * written as `user_name` still breaks a value when the Schema declares `userName`.
    */
   private isBoundaryAhead(
     startPos: number,
     mode: 'structural' | 'greedy'
   ): boolean {
+    const parent = this.pathStack.slice(0, -1)
+    if (this.matchDeclaredKey(startPos, parent) !== null) return true
+
     const key = this.matchKey(startPos)
     if (key === null) return false
-    const parent = this.pathStack.slice(0, -1)
     if (mode === 'structural') return true
     if (this.options.stringCaptureStrategy === 'conservative') return true
     if (this.walker.hasDeclaredProperties(parent)) {
-      return this.walker.isDeclaredProperty(parent, key)
+      return this.walker.matchProperty(parent, key) !== null
     }
     return this.walker.isValidProperty(parent, key)
   }
