@@ -144,7 +144,7 @@ export class RepairParser {
       if (key === null) break
 
       // Handle duplicate keys in implicit objects within an array context
-      if (!hasBraces && obj.hasOwnProperty(key)) {
+      if (!hasBraces && Object.prototype.hasOwnProperty.call(obj, key)) {
         this.pos = lastPos
         break
       }
