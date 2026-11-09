@@ -33,6 +33,8 @@ Standard `json-repair` libraries only fix syntax. **@isdk/json-repair** uses you
   - **Boolean Variants**: Recognizes `yes/no`, `on/off`, `1/0`, `确定/取消` as booleans.
 - **Implicit Structure Support**: Automatically repairs missing braces in objects and arrays.
 - **Robust Property Boundaries**: quoted keys may contain spaces and punctuation (`"Official language": "Italian"`); a value that parses cleanly is never re-tokenized, so valid JSON round-trips exactly like `JSON.parse`.
+- **Fuzzy Key Matching**: `user_name`, `userName` and `USER NAME` resolve to the property your Schema declares, and the output carries the declared name.
+- **Prototype-Safe Output**: keys such as `__proto__` or `constructor` are stored as own data properties, exactly as `JSON.parse` leaves them.
 - **Performance**: Support for reusing `SchemaWalker` instances for high-throughput batch processing.
 
 ## 📦 Installation
@@ -91,7 +93,8 @@ For better performance when processing many items with the same schema:
 ```typescript
 import { jsonRepair, SchemaWalker } from '@isdk/json-repair'
 
-const walker = await SchemaWalker.create(mySchema)
+// Options that concern the Schema itself (`keyMatching`) belong to the walker.
+const walker = await SchemaWalker.create(mySchema, { keyMatching: true })
 
 for (const item of brokenItems) {
   const result = await jsonRepair(item, walker)
@@ -119,6 +122,9 @@ While repairing a value, the parser must decide at every position whether an upc
    - If the Schema declares no property names for that level (no schema, `type: "object"`
      without `properties`, or only `additionalProperties`), the parser falls back to
      “the first key-shaped token ends the value”.
+
+   Set `stringCaptureStrategy: 'conservative'` to make greedy mode stop at _any_ key-shaped
+   token, whatever the Schema declares (see [Repair Options](#-repair-options)).
 
 ### Thinking about the heuristic
 
@@ -151,16 +157,52 @@ according to the Schema.
   `{ "note": see "foo bar": baz here, "b": 2 }` without a schema is therefore read as `{ note: 'see', 'foo bar': 'baz here', b: 2 }`. Declaring that level's `properties` makes greedy capture stop only at real keys and restores `{ note: 'see "foo bar": baz here', b: 2 }` (see [Thinking about the heuristic](#thinking-about-the-heuristic)).
 - **Markdown Blocks**: This library focuses on the JSON content. Please strip `json ...` markers before passing the string if your LLM includes them.
 
-## 🗺 Not Wired Up Yet
+## ⚙️ Repair Options
 
-The following `RepairOptions` are declared in the typings and documented, but currently have
-**no effect** in the implementation. They are scheduled for the next release:
+`jsonRepair(input, schema, options)` takes a fourth argument of type `RepairOptions`:
 
-- `keyMatching` — fuzzy (case-insensitive / snake_case ↔ camelCase / custom) property-name matching.
-- `stringCaptureStrategy` — explicit `'conservative'` vs `'aggressive'` greedy-capture strategy.
-  Today the behaviour described in [How Property Boundaries Are Detected](#how-property-boundaries-are-detected) applies.
-- `additionalProperties` — keeping vs dropping properties that the Schema does not declare.
-  Extra properties are always kept today.
+| Option                  | Default        | What it does                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coerceTypes`           | `true`         | Converts a value to the type the Schema declares: `"Approx. 1,200.50 USD"` → `1200.5`, `"yes"` → `true`, `"Processing!"` → `"processing"` when the enum says so.                                                                                                                                                                                                 |
+| `keyMatching`           | `false`        | Resolves incoming keys to the names the Schema declares. `true` ignores case and separators, so `user_name`, `userName` and `USER NAME` all match `userName`; a function `(key, properties) => string \| undefined` decides itself (`undefined` keeps the key as it is). A match renames the key in the output, which also re-enables coercion for that subtree. |
+| `additionalProperties`  | `'keep'`       | `'remove'` drops keys the Schema does not declare. Applied only at levels that do declare `properties` — a free-form level has no “extra” keys and is left untouched. Independent of the JSON Schema keyword `additionalProperties: false`, which is honoured on its own.                                                                                        |
+| `stringCaptureStrategy` | `'aggressive'` | `'conservative'` ends greedy capture at any key-shaped token instead of only at declared Schema keys: less risk of one broken value swallowing the rest of the document, at the cost of cutting values short.                                                                                                                                                    |
+
+```typescript
+const schema = {
+  type: 'object',
+  properties: {
+    userName: { type: 'string' },
+    userAge: { type: 'number' },
+  },
+}
+
+await jsonRepair('{ user_name: "Ada", user_age: "36" }', schema, {
+  keyMatching: true,
+  coerceTypes: true,
+})
+// { userName: 'Ada', userAge: 36 }
+
+await jsonRepair('{ userName: "Ada", reasoning: "let me think…" }', schema, {
+  additionalProperties: 'remove',
+})
+// { userName: 'Ada' }
+
+const querySchema = {
+  type: 'object',
+  properties: { query: { type: 'string' }, intent: { type: 'string' } },
+}
+
+await jsonRepair(
+  '{ "query": he said "hello there": loudly, "intent": "x" }',
+  querySchema,
+  { stringCaptureStrategy: 'conservative' }
+)
+// { query: 'he said', 'hello there': 'loudly', intent: 'x' }
+```
+
+`keyMatching` is read from the options passed to `SchemaWalker.create()` when you reuse a
+walker; the other options are read on every `jsonRepair()` call.
 
 ## 📄 License
 

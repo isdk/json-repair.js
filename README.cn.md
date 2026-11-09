@@ -33,6 +33,8 @@ LLM 生成的 JSON 经常包含语法错误或语义噪声。常见问题包括�
   - **布尔值变体**：识别 `yes/no`、`on/off`、`1/0`、`确定/取消`、`是/否` 为布尔值。
 - **隐式结构支持**：自动修复对象或数组中缺失的花括号。
 - **稳当的属性边界**：带引号的键名可以含空格与标点（`"Official language": "Italian"`）；能完整解析的值不会被重新切分，因此合法 JSON 的产物与 `JSON.parse` 完全一致。
+- **模糊键名匹配**：`user_name`、`userName`、`USER NAME` 都会归位到 Schema 声明的属性名，输出里用的就是声明的名字。
+- **原型安全的输出**：`__proto__`、`constructor` 这类键名存为自身的普通属性，与 `JSON.parse` 的处理一致。
 - **高性能**：支持复用 `SchemaWalker` 实例，适用于高吞吐量的批处理场景。
 
 ## 📦 安装
@@ -89,7 +91,8 @@ console.log(country) // { Capital: 'Berlin', 'Official language': 'Italian' }
 ```typescript
 import { jsonRepair, SchemaWalker } from '@isdk/json-repair'
 
-const walker = await SchemaWalker.create(mySchema)
+// 与 Schema 本身相关的选项（`keyMatching`）属于 walker。
+const walker = await SchemaWalker.create(mySchema, { keyMatching: true })
 
 for (const item of brokenItems) {
   const result = await jsonRepair(item, walker)
@@ -108,6 +111,8 @@ for (const item of brokenItems) {
    - 如果 Schema 在当前层级声明了属性名，则**只在已声明的键名处断开**。仅仅是“看起来像键”的文本会留在值里：
      `{ "query": he said "hello there": loudly, "intent": "x" }` 会得到 `query = 'he said "hello there": loudly'`。
    - 如果当前层级没有任何声明的属性名（无 Schema、只有 `type: "object"` 没有 `properties`、或只写了 `additionalProperties`），则退回到“第一个键形状的 token 即结束值”。
+
+   将 `stringCaptureStrategy: 'conservative'` 可以让贪婪模式不管 Schema 声明与否，都在任意“键形状 + `:`”处结束（参见[修复选项](#-修复选项)）。
 
 ### 如何理解这套启发式
 
@@ -132,13 +137,51 @@ for (const item of brokenItems) {
   声明该层级的 `properties` 后，贪婪捕获只在真正的键名处断开，才能还原成 `{ note: 'see "foo bar": baz here', b: 2 }`（参见[如何理解这套启发式](#如何理解这套启发式)）。
 - **Markdown 代码块**：本库专注于 JSON 内容修复。如果 LLM 的输出包含 `json ...` 标记，请在传入前自行剥离。
 
-## 🗺 尚未生效的选项
+## ⚙️ 修复选项
 
-以下 `RepairOptions` 已在类型定义与文档中声明，但当前实现**尚未接入**，计划在下一个版本落地：
+`jsonRepair(input, schema, options)` 的第三个参数就是 `RepairOptions`：
 
-- `keyMatching` —— 模糊键名匹配（大小写不敏感 / snake_case ↔ camelCase / 自定义映射）。
-- `stringCaptureStrategy` —— 显式选择 `'conservative'` 或 `'aggressive'` 贪婪捕获策略；目前的行为见[属性边界是如何判定的](#属性边界是如何判定的)。
-- `additionalProperties` —— 保留或丢弃 Schema 未声明的属性；目前总是保留。
+| 选项                    | 默认值         | 作用                                                                                                                                                                                                                                                                               |
+| ----------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coerceTypes`           | `true`         | 按 Schema 声明的类型做强制转换：`"约 1,200.50 元"` → `1200.5`、`"yes"` → `true`、枚举内的 `"Processing!"` → `"processing"`。                                                                                                                                                       |
+| `keyMatching`           | `false`        | 把输入键名解析成 Schema 声明的属性名。`true` 忽略大小写和分隔符，`user_name`、`userName`、`USER NAME` 均匹配 `userName`；也可以传 `(key, properties) => string \| undefined` 自定义映射（返回 `undefined` 则保留原键名）。命中后输出里的键名会被改写，该子树的类型转换也随之生效。 |
+| `additionalProperties`  | `'keep'`       | `'remove'` 丢弃 Schema 未声明的键，且只在确实声明了 `properties` 的层级生效 —— 自由结构没有“多余键”的概念，保持原样。它与 JSON Schema 关键字 `additionalProperties: false` 互不影响，后者单独生效。                                                                                |
+| `stringCaptureStrategy` | `'aggressive'` | `'conservative'`：贪婪捕获在任意“键形状 + `:`”处结束，而不再只在 Schema 声明的键名处结束。代价是值更容易被截断，好处是一个破碎的值不会吞掉后面的一大片内容。                                                                                                                       |
+
+```typescript
+const schema = {
+  type: 'object',
+  properties: {
+    userName: { type: 'string' },
+    userAge: { type: 'number' },
+  },
+}
+
+await jsonRepair('{ user_name: "Ada", user_age: "36" }', schema, {
+  keyMatching: true,
+  coerceTypes: true,
+})
+// { userName: 'Ada', userAge: 36 }
+
+await jsonRepair('{ userName: "Ada", reasoning: "让我想想…" }', schema, {
+  additionalProperties: 'remove',
+})
+// { userName: 'Ada' }
+
+const querySchema = {
+  type: 'object',
+  properties: { query: { type: 'string' }, intent: { type: 'string' } },
+}
+
+await jsonRepair(
+  '{ "query": he said "hello there": loudly, "intent": "x" }',
+  querySchema,
+  { stringCaptureStrategy: 'conservative' }
+)
+// { query: 'he said', 'hello there': 'loudly', intent: 'x' }
+```
+
+复用 walker 时，`keyMatching` 取自 `SchemaWalker.create()` 的选项；其余选项在每次 `jsonRepair()` 调用时读取。
 
 ## 📄 开源协议
 

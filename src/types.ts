@@ -35,9 +35,14 @@ export interface RepairOptions {
   stringCaptureStrategy?: 'conservative' | 'aggressive'
 
   /**
-   * Whether to attempt type coercion based on the Schema.
+   * Whether to coerce values to the type the Schema declares. Enabled by default.
    *
-   * If `true`, the parser will try to convert values to the expected type (e.g., "123" to 123 for numbers, "yes" to true for booleans).
+   * - `true` (default): `"Approx. 1,200.50 USD"` becomes `1200.5`, `"yes"` becomes `true`,
+   *   `"Processing!"` becomes the enum entry it fuzzy matches.
+   * - `false`: values are returned exactly as they were parsed.
+   *
+   * Coercion needs the Schema of the property the value belongs to; a level that declares
+   * no types is left alone.
    */
   coerceTypes?: boolean
 
