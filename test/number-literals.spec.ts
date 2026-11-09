@@ -17,7 +17,8 @@ describe('number literals: JSON.parse parity', () => {
     ],
     [`{"a": [1e-7, 3E+2, -1.5]}`, { a: [1e-7, 300, -1.5] }],
     [`{"a": {"b": 2e3}}`, { a: { b: 2000 } }],
-    [`{"a": 12345678901234567890}`, { a: 12345678901234567890 }],
+    // expected value written in exponent form: the digit form is rounded at parse time
+    [`{"a": 12345678901234567890}`, { a: 1.2345678901234567e19 }],
     [`{"big 1": 1e5, "big 2": 2.5e2}`, { 'big 1': 100000, 'big 2': 250 }],
   ]
 
