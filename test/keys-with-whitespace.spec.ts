@@ -269,6 +269,13 @@ describe('greedy capture must keep working (regression guards)', () => {
     assertSaneKeys(result);
   });
 
+  it('documented limitation: without declared properties, key-shaped text becomes a property', async () => {
+    // No Schema property names exist at this level, so the parser falls back to
+    // "the first key-shaped token ends the value". See README - Thinking about the heuristic.
+    const result = await jsonRepair(`{ "note": see "foo bar": baz here, "b": 2 }`);
+    expect(result).toEqual({ note: 'see', 'foo bar': 'baz here', b: 2 });
+  });
+
   it('unescaped quotes inside a value do not consume the rest of the document', async () => {
     const schema = {
       type: 'object',
