@@ -4,16 +4,17 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "declaration": true,
-    "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+
+    // 这份 tsconfig 只给编辑器 / 类型检查用（构建走 tsup + tsconfig.release.json），
+    // 所以这里 noEmit，并且不要把 outDir 之类的产物配置放进来。
+    "noEmit": true
   },
-  "exclude": [
-    "node_modules",
-    "**/*.spec.ts",
-    "**/*.test.ts"
-  ],
-  "include": ["src/**/*"]
+  // 开发/编辑器视角：测试文件也要在 program 里，否则 VS Code 会把它们
+  // 当成 invisible file 放进 inferred project，这份配置对它们无效。
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist", "web", "docs"]
 }
