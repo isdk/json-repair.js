@@ -165,7 +165,7 @@ export class RepairParser {
         const val = this.consumeValue()
         if (this.pos !== lastPos || (val !== undefined && val !== '')) {
           if (this.isKeptProperty(parentPath, property)) {
-            obj[property] = val
+            RepairParser.setOwn(obj, property, val)
           }
         }
       } finally {
@@ -208,6 +208,22 @@ export class RepairParser {
     if (this.options.additionalProperties !== 'remove') return true
     if (!this.walker.hasDeclaredProperties(parent)) return true
     return this.walker.isDeclaredProperty(parent, property)
+  }
+
+  /**
+   * Assigns an own enumerable property without going through setters.
+   *
+   * `obj[key] = value` with a key such as `__proto__` rewrites the prototype of the result
+   * instead of storing a value (`JSON.parse` keeps it as a plain data property), which both
+   * loses the key and leaks inherited properties into the repaired document.
+   */
+  private static setOwn(target: any, key: string, value: any): void {
+    Object.defineProperty(target, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
 
   /**

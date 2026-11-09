@@ -1,4 +1,5 @@
 import $RefParser from '@apidevtools/json-schema-ref-parser'
+import { cloneDeep } from 'lodash-es'
 import { JSONPath, RepairOptions } from '../types.js'
 
 /**
@@ -19,6 +20,9 @@ export class SchemaWalker {
    * Static factory method to create a SchemaWalker instance.
    * Asynchronously dereferences the provided JSON Schema.
    *
+   * The Schema is dereferenced on a deep copy: `$RefParser.dereference()` replaces every
+   * `$ref` in place, which would otherwise rewrite the object the caller passed in.
+   *
    * @param schema - The JSON Schema object to walk.
    * @param options - Repair options that concern the Schema itself (`keyMatching`).
    * @returns A promise that resolves to a SchemaWalker instance.
@@ -31,7 +35,7 @@ export class SchemaWalker {
       return new SchemaWalker({}, options)
     }
     const parser = new $RefParser()
-    const dereferenced = await parser.dereference(schema)
+    const dereferenced = await parser.dereference(cloneDeep(schema))
     return new SchemaWalker(dereferenced, options)
   }
 
