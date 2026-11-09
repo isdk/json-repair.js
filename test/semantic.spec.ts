@@ -29,6 +29,42 @@ describe('jsonRepair Semantic Enhancements', () => {
     expect(result.count).toBe(5)
   })
 
+  it('extracts the number when the surrounding text contains dots', async () => {
+    const schema = {
+      type: 'object',
+      properties: { price: { type: 'number' } },
+    }
+    const cases: [string, number][] = [
+      ['Approx. 1,200.50 USD', 1200.5],
+      ['$1,200', 1200],
+      ['Temp: -4.5C', -4.5],
+      ['12 apples', 12],
+      ['takes 1.5e3 ms', 1500],
+    ]
+    for (const [text, expected] of cases) {
+      const result = await jsonRepair(`{ price: "${text}" }`, schema)
+      expect(result.price, text).toBe(expected)
+    }
+  })
+
+  it('leaves a string without any digits alone', async () => {
+    const schema = {
+      type: 'object',
+      properties: { price: { type: 'number' } },
+    }
+    const result = await jsonRepair('{ price: "no digits here" }', schema)
+    expect(result.price).toBe('no digits here')
+  })
+
+  it('takes the first number of a run such as 1.2.3 (best effort)', async () => {
+    const schema = {
+      type: 'object',
+      properties: { price: { type: 'number' } },
+    }
+    const result = await jsonRepair('{ price: "1.2.3" }', schema)
+    expect(result.price).toBe(1.2)
+  })
+
   it('should parse boolean variants', async () => {
     const schema = {
       type: 'object',

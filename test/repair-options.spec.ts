@@ -129,6 +129,27 @@ describe('keyMatching', () => {
   })
 })
 
+describe('coerceTypes', () => {
+  const schema = {
+    type: 'object',
+    properties: { userAge: { type: 'number' } },
+  }
+
+  it('is enabled by default', async () => {
+    expect(await jsonRepair('{ userAge: "36" }', schema)).toEqual({
+      userAge: 36,
+    })
+  })
+
+  it('leaves the parsed value untouched when disabled', async () => {
+    expect(
+      await jsonRepair('{ userAge: "36" }', schema, { coerceTypes: false })
+    ).toEqual({
+      userAge: '36',
+    })
+  })
+})
+
 describe('additionalProperties', () => {
   it("keeps undeclared keys by default ('keep')", async () => {
     const result = await jsonRepair(
