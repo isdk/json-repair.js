@@ -1,1 +1,1 @@
-export * from './schema-walker.js';
+export * from './schema-walker.js'

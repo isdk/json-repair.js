@@ -1,6 +1,7 @@
 # @isdk/json-repair
 
 > 【[English](./README.md)|中文】
+
 ---
 
 一个强大的、基于 Schema 引导的 JSON 修复库，专为修复大语言模型 (LLM) 生成的“破碎” JSON 而设计。
@@ -47,20 +48,20 @@ pnpm add @isdk/json-repair @apidevtools/json-schema-ref-parser
 这是最强大的使用方式。提供 Schema 可以开启语义强制转换、贪婪捕获和更精准的歧义消除等高级特性。
 
 ```typescript
-import { jsonRepair } from '@isdk/json-repair';
+import { jsonRepair } from '@isdk/json-repair'
 
 const schema = {
   type: 'object',
   properties: {
     query: { type: 'string' },
-    status: { enum: ['success', 'error'] }
-  }
-};
+    status: { enum: ['success', 'error'] },
+  },
+}
 
-const brokenJson = '{ query: "python" OR "js", status: Success! }';
+const brokenJson = '{ query: "python" OR "js", status: Success! }'
 
-const result = await jsonRepair(brokenJson, schema);
-console.log(result);
+const result = await jsonRepair(brokenJson, schema)
+console.log(result)
 // 输出: { query: '"python" OR "js"', status: 'success' }
 ```
 
@@ -69,14 +70,16 @@ console.log(result);
 对于基础的语法修复，你可以不提供 Schema：
 
 ```typescript
-import { jsonRepair } from '@isdk/json-repair';
+import { jsonRepair } from '@isdk/json-repair'
 
-const result = await jsonRepair('{ name: 张三, age: 30 }');
-console.log(result); // { name: '张三', age: 30 }
+const result = await jsonRepair('{ name: 张三, age: 30 }')
+console.log(result) // { name: '张三', age: 30 }
 
 // 带引号的键名可以包含空格与标点；合法 JSON 会被原样保留。
-const country = await jsonRepair('{ "Capital": "Berlin", "Official language": "Italian" }');
-console.log(country); // { Capital: 'Berlin', 'Official language': 'Italian' }
+const country = await jsonRepair(
+  '{ "Capital": "Berlin", "Official language": "Italian" }'
+)
+console.log(country) // { Capital: 'Berlin', 'Official language': 'Italian' }
 ```
 
 ### 高级技巧：复用 SchemaWalker (批处理)
@@ -84,12 +87,12 @@ console.log(country); // { Capital: 'Berlin', 'Official language': 'Italian' }
 如果你需要使用相同的 Schema 处理大量数据，预解析 Schema 可以显著提升性能：
 
 ```typescript
-import { jsonRepair, SchemaWalker } from '@isdk/json-repair';
+import { jsonRepair, SchemaWalker } from '@isdk/json-repair'
 
-const walker = await SchemaWalker.create(mySchema);
+const walker = await SchemaWalker.create(mySchema)
 
 for (const item of brokenItems) {
-  const result = await jsonRepair(item, walker);
+  const result = await jsonRepair(item, walker)
   // ...
 }
 ```
@@ -127,7 +130,7 @@ for (const item of brokenItems) {
 - **破碎值内部“看起来像键”的文本（无 Schema 引导时）**：当前层级没有声明任何属性名时，第一个键形状的 token 就会结束该值。
   因此无 Schema 的 `{ "note": see "foo bar": baz here, "b": 2 }` 会被读成 `{ note: 'see', 'foo bar': 'baz here', b: 2 }`。
   声明该层级的 `properties` 后，贪婪捕获只在真正的键名处断开，才能还原成 `{ note: 'see "foo bar": baz here', b: 2 }`（参见[如何理解这套启发式](#如何理解这套启发式)）。
-- **Markdown 代码块**：本库专注于 JSON 内容修复。如果 LLM 的输出包含 ```json ...``` 标记，请在传入前自行剥离。
+- **Markdown 代码块**：本库专注于 JSON 内容修复。如果 LLM 的输出包含 `json ...` 标记，请在传入前自行剥离。
 
 ## 🗺 尚未生效的选项
 

@@ -1,16 +1,21 @@
 import { defineConfig } from 'vite'
-import tsconfigPaths from 'vite-tsconfig-paths';
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
-  plugins: [tsconfigPaths({
-    projects: ['./tsconfig.json'],
-  })],
+  plugins: [
+    tsconfigPaths({
+      projects: ['./tsconfig.json'],
+    }),
+  ],
   test: {
-    include: ['src/**/*.spec.ts', 'src/**/*.test.ts', 'test/*.spec.ts', 'test/*.test.ts'],
+    include: [
+      'src/**/*.spec.ts',
+      'src/**/*.test.ts',
+      'test/*.spec.ts',
+      'test/*.test.ts',
+    ],
     testTimeout: 80000,
     globals: true,
-    "setupFiles": [
-      "./setupVitest.mjs"
-    ],
+    setupFiles: ['./setupVitest.mjs'],
   },
 })

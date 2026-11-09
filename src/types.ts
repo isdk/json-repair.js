@@ -11,7 +11,9 @@ export interface RepairOptions {
    *
    * @experimental Declared but not wired up yet; has no effect in the current release.
    */
-  keyMatching?: boolean | ((key: string, properties: string[]) => string | undefined);
+  keyMatching?:
+    | boolean
+    | ((key: string, properties: string[]) => string | undefined)
 
   /**
    * Strategy for greedy string capture when standard JSON parsing fails.
@@ -22,14 +24,14 @@ export interface RepairOptions {
    * @experimental Declared but not wired up yet; has no effect in the current release.
    * See `RepairParser.isAtDelimiter()` for the behaviour that is actually applied.
    */
-  stringCaptureStrategy?: 'conservative' | 'aggressive';
+  stringCaptureStrategy?: 'conservative' | 'aggressive'
 
   /**
    * Whether to attempt type coercion based on the Schema.
-   * 
+   *
    * If `true`, the parser will try to convert values to the expected type (e.g., "123" to 123 for numbers, "yes" to true for booleans).
    */
-  coerceTypes?: boolean;
+  coerceTypes?: boolean
 
   /**
    * Defines how to handle properties not defined in the Schema.
@@ -39,11 +41,11 @@ export interface RepairOptions {
    *
    * @experimental Declared but not wired up yet; extra properties are always kept.
    */
-  additionalProperties?: 'keep' | 'remove';
+  additionalProperties?: 'keep' | 'remove'
 }
 
 /**
  * Represents the current path in a JSON structure.
  * A list of strings (keys) and numbers (indices).
  */
-export type JSONPath = (string | number)[];
+export type JSONPath = (string | number)[]
