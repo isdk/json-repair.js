@@ -98,6 +98,9 @@ export class SchemaWalker {
    * (`user_name` / `userName` / `USER NAME`). A function matcher decides itself and may
    * return a name the Schema does not declare.
    *
+   * Besides renaming, the result is what makes a key a breakpoint for greedy string capture:
+   * the parser calls this while deciding whether an upcoming `key:` ends the value in front of it.
+   *
    * @param path - The current parent path.
    * @param key - The property key found in the broken document.
    * @returns The canonical Schema property name, or `null` when nothing matches.

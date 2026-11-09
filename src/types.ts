@@ -14,6 +14,8 @@ export interface RepairOptions {
    *
    * A match renames the key to the Schema's name in the output and makes nested Schema
    * lookups (and therefore type coercion) work for it.
+   * It also decides where greedy capture stops: with `true` a separator or case variant of a
+   * declared key (`user_name:` for `userName`) ends the value in front of it.
    * When you reuse a `SchemaWalker`, pass this option to `SchemaWalker.create()`.
    */
   keyMatching?:
@@ -29,6 +31,9 @@ export interface RepairOptions {
    * - `'conservative'`: Any text matching the `"key":` / `key:` pattern ends the value,
    *   which keeps the structure of the document at the cost of cutting values short.
    *
+   * A whitespace-containing key the Schema declares is a breakpoint in both strategies even
+   * when the document left it unquoted (`{ Capital: Berlin, Official language: Italian }`),
+   * because it can only be recognised from the declaration.
    * Neither strategy affects values that were parsed by the strict JSON path; the
    * boundary rules described in the README apply to those unchanged.
    */

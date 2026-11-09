@@ -32,7 +32,7 @@ Standard `json-repair` libraries only fix syntax. **@isdk/json-repair** uses you
   - **Noisy Number Extraction**: Extracts `1200.5` from `"Approx. 1,200.50 USD"`.
   - **Boolean Variants**: Recognizes `yes/no`, `on/off`, `1/0`, `确定/取消` as booleans.
 - **Implicit Structure Support**: Automatically repairs missing braces in objects and arrays.
-- **Robust Property Boundaries**: quoted keys may contain spaces and punctuation (`"Official language": "Italian"`); a value that parses cleanly is never re-tokenized, so valid JSON round-trips exactly like `JSON.parse`.
+- **Robust Property Boundaries**: quoted keys may contain spaces and punctuation (`"Official language": "Italian"`), and a multi-word key the Schema declares is recognised even when the document leaves it unquoted; a value that parses cleanly is never re-tokenized, so valid JSON round-trips exactly like `JSON.parse`.
 - **Fuzzy Key Matching**: `user_name`, `userName` and `USER NAME` resolve to the property your Schema declares, and the output carries the declared name.
 - **Prototype-Safe Output**: keys such as `__proto__` or `constructor` are stored as own data properties, exactly as `JSON.parse` leaves them.
 - **Performance**: Support for reusing `SchemaWalker` instances for high-throughput batch processing.
@@ -67,6 +67,23 @@ const brokenJson = '{ query: "python" OR "js", status: Success! }'
 const result = await jsonRepair(brokenJson, schema)
 console.log(result)
 // Output: { query: '"python" OR "js"', status: 'success' }
+
+// A multi-word key the Schema declares is found even when the document leaves it unquoted.
+const countrySchema = {
+  type: 'object',
+  properties: {
+    Capital: { type: 'string' },
+    'Official language': { type: 'string' },
+  },
+}
+
+console.log(
+  await jsonRepair(
+    '{ Capital: Berlin, Official language: Italian }',
+    countrySchema
+  )
+)
+// Output: { Capital: 'Berlin', 'Official language': 'Italian' }
 ```
 
 ### 2. Simple Usage (Without Schema)
@@ -122,6 +139,12 @@ While repairing a value, the parser must decide at every position whether an upc
    - If the Schema declares no property names for that level (no schema, `type: "object"`
      without `properties`, or only `additionalProperties`), the parser falls back to
      “the first key-shaped token ends the value”.
+   - A **declared** name is additionally searched for literally, so it is a breakpoint (and a key)
+     even when the document left it unquoted and it contains whitespace. The generic key scanner
+     cannot see a bare `Official language:` as one key — the Schema can:
+     `{ Capital: Berlin, Official language: Italian }` yields
+     `{ Capital: 'Berlin', 'Official language': 'Italian' }`. Under `keyMatching`, separator and
+     case variants of a declared key (`user_name` for `userName`) end a value too.
 
    Set `stringCaptureStrategy: 'conservative'` to make greedy mode stop at _any_ key-shaped
    token, whatever the Schema declares (see [Repair Options](#-repair-options)).
@@ -134,6 +157,7 @@ parser follows are:
 
 - A **cleanly parsed** value is trusted; whatever follows it is assumed to be structure.
 - A **messy** value is preserved as text whenever the Schema can name the real anchors.
+- A name the Schema **declares** is matched literally, so a multi-word key does not need quotes in the document to be recognised; a multi-word name the Schema does not declare is never treated as a key.
 - Consequently, **declaring the `properties` of the current level is the single most effective
   way to steer the repair** — declared keys act as breakpoints for greedy capture, and
   declared `type`/`enum` enable semantic coercion.
@@ -155,18 +179,20 @@ according to the Schema.
   - **Limitation**: Highly unusual patterns like `"a"b"c"` might remain ambiguous.
 - **Key-shaped text inside a broken value (no schema guidance)**: when the Schema declares no property names for the current level, the first key-shaped token ends the value.
   `{ "note": see "foo bar": baz here, "b": 2 }` without a schema is therefore read as `{ note: 'see', 'foo bar': 'baz here', b: 2 }`. Declaring that level's `properties` makes greedy capture stop only at real keys and restores `{ note: 'see "foo bar": baz here', b: 2 }` (see [Thinking about the heuristic](#thinking-about-the-heuristic)).
+- **Unquoted multi-word keys need a declaration.** `{ Capital: Berlin, Official language: Italian }` becomes two properties because the Schema declares `Official language`. A spaced key that is _not_ declared is not a key: `{ Capital: Berlin, Official Lang: Italian }` keeps the whole text in `Capital` under the default `'aggressive'` strategy, and splits at the space (`{ Capital: 'Berlin, Official', Lang: 'Italian' }`) under `'conservative'`.
+- **Prose that repeats a declared key is cut there.** Declared keys are breakpoints, so `{ summary: the Official language: Italian is wrong, Official language: Italian }` reads `summary = 'the'`. If a value may legitimately repeat a declared key, have the model quote its keys or pick a less colliding property name.
 - **Markdown Blocks**: This library focuses on the JSON content. Please strip `json ...` markers before passing the string if your LLM includes them.
 
 ## ⚙️ Repair Options
 
 `jsonRepair(input, schema, options)` takes a fourth argument of type `RepairOptions`:
 
-| Option                  | Default        | What it does                                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `coerceTypes`           | `true`         | Converts a value to the type the Schema declares: `"Approx. 1,200.50 USD"` → `1200.5`, `"yes"` → `true`, `"Processing!"` → `"processing"` when the enum says so.                                                                                                                                                                                                 |
-| `keyMatching`           | `false`        | Resolves incoming keys to the names the Schema declares. `true` ignores case and separators, so `user_name`, `userName` and `USER NAME` all match `userName`; a function `(key, properties) => string \| undefined` decides itself (`undefined` keeps the key as it is). A match renames the key in the output, which also re-enables coercion for that subtree. |
-| `additionalProperties`  | `'keep'`       | `'remove'` drops keys the Schema does not declare. Applied only at levels that do declare `properties` — a free-form level has no “extra” keys and is left untouched. Independent of the JSON Schema keyword `additionalProperties: false`, which is honoured on its own.                                                                                        |
-| `stringCaptureStrategy` | `'aggressive'` | `'conservative'` ends greedy capture at any key-shaped token instead of only at declared Schema keys: less risk of one broken value swallowing the rest of the document, at the cost of cutting values short.                                                                                                                                                    |
+| Option                  | Default        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coerceTypes`           | `true`         | Converts a value to the type the Schema declares: `"Approx. 1,200.50 USD"` → `1200.5`, `"yes"` → `true`, `"Processing!"` → `"processing"` when the enum says so.                                                                                                                                                                                                                                                                                                                        |
+| `keyMatching`           | `false`        | Resolves incoming keys to the names the Schema declares. `true` ignores case and separators, so `user_name`, `userName` and `USER NAME` all match `userName`; a function `(key, properties) => string \| undefined` decides itself (`undefined` keeps the key as it is). A match renames the key in the output, which also re-enables coercion for that subtree. With `true` it also decides where greedy capture stops: `user_name:` ends a value when the Schema declares `userName`. |
+| `additionalProperties`  | `'keep'`       | `'remove'` drops keys the Schema does not declare. Applied only at levels that do declare `properties` — a free-form level has no “extra” keys and is left untouched. Independent of the JSON Schema keyword `additionalProperties: false`, which is honoured on its own.                                                                                                                                                                                                               |
+| `stringCaptureStrategy` | `'aggressive'` | `'conservative'` ends greedy capture at any key-shaped token instead of only at declared Schema keys: less risk of one broken value swallowing the rest of the document, at the cost of cutting values short.                                                                                                                                                                                                                                                                           |
 
 ```typescript
 const schema = {
